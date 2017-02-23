@@ -18,7 +18,7 @@ pub trait TracedItem {
 }
 pub enum Item {
     Sampled(Box<SampleItem>, usize),
-    Traced(Box<TracedItem>, usize)
+    Traced(Box<TracedItem>, usize, f64)
 }
 
 pub struct XY {
@@ -81,10 +81,10 @@ impl Figure {
         self
     }
     
-    pub fn trace<S>(&mut self, item: S, iterations: usize) -> &mut Figure
+    pub fn trace<S>(&mut self, item: S, iterations: usize, strength: f64) -> &mut Figure
     where S: TracedItem + 'static
     {
-        self.items.push(Item::Traced(box item, iterations));
+        self.items.push(Item::Traced(box item, iterations, strength));
         self
     }
 
@@ -111,10 +111,11 @@ impl Figure {
             subpixel_height.into()
         ) / domain_size;
         
-        let mut draw = |p: Vector2<i32>| {
-            // cast into pixel coordinates
+        let clipped = |p: Vector2<i32>| -> Option<(u32, u32)> {
             if p.x >= 0 && p.x < subpixel_width && p.y >= 0 && p.y < subpixel_height {
-                canvas.put_sample(p.x as u32, p.y as u32);
+                Some((p.x as u32, p.y as u32))
+            } else {
+                None
             }
         };
         
@@ -132,11 +133,18 @@ impl Figure {
                         );
                         
                         let q = (p - offset).to_vector() * canvas_scale + noise;
-                        draw(Vector2::new(q.x as i32, q.y as i32));
+                        let qx = Vector2::new(q.x as i32, q.y as i32);
+                        if let Some((x, y)) = clipped(qx) {
+                            canvas.put_sample(x, y);
+                        }
                     }
                 },
-                Item::Traced(ref item, iterations) => {
-                    let mut pen = Pen::new(|p, v| draw(p));
+                Item::Traced(ref item, iterations, strength) => {
+                    let mut pen = Pen::new(|p, v| {
+                        if let Some((x, y)) = clipped(p) {
+                            canvas.put_weighted_sample(x, y, strength * v);
+                        }
+                    });
                     let mut points = item.trace()
                     .map(|p| (p - offset) * canvas_scale);
                     

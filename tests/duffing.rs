@@ -29,7 +29,8 @@ fn test_duffing() {
             Vector2::new(1.0, 1.0),
             1e-3
         ),
-        1000_000
+        10_000_000,
+        0.01
     )
     .draw::<image::RgbImage>(1600, 800)
     .save("data/test_duffing.png")

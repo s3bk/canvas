@@ -14,6 +14,10 @@ impl Canvas for image::GrayImage {
         let ref mut p = self.get_pixel_mut(x, y);
         p.data[0] = p.data[0].saturating_sub(1);
     }
+    fn put_weighted_sample(&mut self, x: u32, y: u32, weight: f64) {
+        let ref mut p = self.get_pixel_mut(x, y);
+        p.data[0] = p.data[0].saturating_sub((255. * weight) as u8);
+    }
     
     fn empty(width: u32, height: u32) -> image::GrayImage {
         image::GrayImage::from_pixel(
@@ -39,6 +43,15 @@ impl Canvas for image::RgbImage {
             let c = ((sx + i) % 3) as usize;
             let ref mut p = self.get_pixel_mut(x, y);
             p.data[c] = p.data[c].saturating_sub(1);
+        }
+    }
+    fn put_weighted_sample(&mut self, sx: u32, y: u32, weight: f64) {
+        let w = (255. * weight) as u8;
+        for i in 0..3 {
+            let x = (sx+i) / 3;
+            let c = ((sx + i) % 3) as usize;
+            let ref mut p = self.get_pixel_mut(x, y);
+            p.data[c] = p.data[c].saturating_sub(w);
         }
     }
     
