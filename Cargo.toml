@@ -1,0 +1,14 @@
+[package]
+name = "canvas"
+version = "0.1.0"
+authors = ["Sebastian Köln <sebk@rynx.org>"]
+
+[dependencies]
+nalgebra = "0.10"
+rand = "0.3"
+num = "0.1.36"
+
+[dependencies.image]
+version = "0.10.3"
+default-features = false
+features = ["png_codec"]
