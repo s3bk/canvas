@@ -2,10 +2,8 @@ use canvas::Canvas;
 use rand;
 use rand::distributions::{IndependentSample, Range as Uniform};
 use nalgebra::{Vector2, Point2};
-use num::{Float, cast};
 use std::ops::Range;
-use std::rc::Rc;
-use std::convert::{From, Into};
+use std::convert::Into;
 use pen::Pen;
 
 pub type N = f64;
@@ -122,7 +120,7 @@ impl Figure {
         for item in self.items.iter() {
             match *item {
                 Item::Sampled(ref item, samples) => {
-                    for n in 0 .. samples {
+                    for _ in 0 .. samples {
                         // p is in domain space
                         let p = item.sample(rng);
                         

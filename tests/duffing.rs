@@ -6,11 +6,10 @@ extern crate image;
 extern crate nalgebra;
 
 use nalgebra::Vector2;
-use canvas::plot::{Figure, XY, Parametric};
+use canvas::plot::Figure;
 use canvas::integrate::IntegratedFunction;
-use image::RgbaImage;
 
-
+#[allow(non_snake_case)]
 fn duffing(ɛ: f64, λ: f64, Ω: f64, α: f64, β: f64) -> impl Fn(f64, Vector2<f64>) -> Vector2<f64> {
     move |t, s| {
         Vector2::new(
@@ -29,10 +28,10 @@ fn test_duffing() {
             Vector2::new(1.0, 1.0),
             1e-3
         ),
-        10_000_000,
+        2_000_000,
         0.01
     )
-    .draw::<image::RgbImage>(1600, 800)
+    .draw::<image::RgbImage>(600, 300)
     .save("data/test_duffing.png")
     .unwrap();
 }
