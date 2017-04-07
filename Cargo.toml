@@ -4,11 +4,20 @@ version = "0.1.0"
 authors = ["Sebastian Köln <sebk@rynx.org>"]
 
 [dependencies]
-nalgebra = "0.10"
 rand = "0.3"
 num = "0.1.36"
+prefetch = "0.1.0"
+tuple = "0.1"
+palette = "*"
+lazy_static = "*"
 
 [dependencies.image]
-version = "0.10.3"
+version = "0.12.3"
 default-features = false
 features = ["png_codec"]
+
+[dev-dependencies.math]
+git = "https://github.com/s3bk/math"
+
+[profile.release]
+opt-level = 3
