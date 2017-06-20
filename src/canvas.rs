@@ -1,4 +1,5 @@
 use std::ops::{DerefMut};
+use std::mem;
 
 pub trait Meta {
     fn new(usize, usize) -> Self;
@@ -17,8 +18,10 @@ pub trait Meta {
 pub trait Data {
     type Item;
     
+    fn map<F>(&mut self, f: F) where F: Fn(Self::Item) -> Self::Item;
+        
     fn apply<I, F>(&mut self, it: I, f: F) where
-        I: Iterator<Item=(usize, Self::Item)>, F: Fn(&mut Self::Item, Self::Item);
+        I: Iterator<Item=(usize, Self::Item)>, F: Fn(Self::Item, Self::Item) -> Self::Item;
         
     fn get(&self, index: usize) -> &Self::Item;
     fn get_mut(&mut self, index: usize) -> &mut Self::Item;
@@ -46,14 +49,21 @@ pub trait Initial {
     fn initial(width: usize, height: usize) -> Self;
 }
 
-impl<A, T> Data for A where A: DerefMut<Target=[T]> {
+impl<A, T> Data for A where A: DerefMut<Target=[T]>, T: Default {
     type Item = T;
     
+    fn map<F>(&mut self, f: F) where F: Fn(Self::Item) -> Self::Item {
+        for v in self.iter_mut() {
+            *v = f(mem::replace(v, T::default()));
+        }
+    }
+    
     fn apply<I, F>(&mut self, it: I, f: F) where
-        I: Iterator<Item=(usize, T)>, F: Fn(&mut T, T)
+        I: Iterator<Item=(usize, T)>, F: Fn(T, T) -> T
     {
         for (idx, v) in it {
-            f(&mut self[idx], v);
+            let data = &mut self[idx];
+            *data = f(mem::replace(data, T::default()), v);
         }
     }
     

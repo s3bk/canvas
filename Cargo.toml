@@ -4,20 +4,22 @@ version = "0.1.0"
 authors = ["Sebastian Köln <sebk@rynx.org>"]
 
 [dependencies]
-rand = "0.3"
-num = "0.1.36"
-prefetch = "0.1.0"
-tuple = "0.1"
+rand = "*"
+num = "*"
+prefetch = "*"
+tuple = { version = "*", git = "https://github.com/s3bk/tuple.git" }
 palette = "*"
 lazy_static = "*"
+math = { version = "*", git = "https://github.com/s3bk/math.git" }
 
 [dependencies.image]
-version = "0.12.3"
+version = "0.14"
 default-features = false
 features = ["png_codec"]
 
-[dev-dependencies.math]
-git = "https://github.com/s3bk/math"
+[dev-dependencies]
+fmath = { version = "*", git = "https://github.com/s3bk/fmath.git" }
+simd = "*"
 
 [profile.release]
 opt-level = 3

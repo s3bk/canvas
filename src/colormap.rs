@@ -102,7 +102,7 @@ pub fn grayscale<C: Canvas>(canvas: &C) -> GrayImage
             .to_f32()
             .map(|v| v * scale)
             .unwrap_or(0.);
-            *p = Luma { data: [v as u8] };
+            *p = Luma { data: [255 - v as u8] };
         }
         
         imgbuf
