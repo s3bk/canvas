@@ -178,7 +178,7 @@ impl Meta for RowMajor {
     
     #[inline(always)]
     fn index(&self, p: (usize, usize)) -> usize {
-        p.0 + p.1 * self.height
+        p.0 + p.1 * self.width
     }
 }
 

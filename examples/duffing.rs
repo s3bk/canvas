@@ -61,7 +61,7 @@ impl Visible for Viewer {
 }
 
 fn main() {
-    let width = 1024;
+    let width = 2024;
     let height = 1024;
 
     let mut f = Figure::new(-4.0f32 .. 4.0, -6.0 .. 6.0);
@@ -72,7 +72,7 @@ fn main() {
             0.0,
             1e-3
         ),
-        100_000
+        200_000
     );
     
     let mut v = Viewer {
