@@ -75,9 +75,12 @@ fn main() {
         100_000
     );
     
-    Viewer {
+    let mut v = Viewer {
         fig:    f,
         img:    RgbaImage::new(width as u32, height as u32),
         map:    Array::new(RowMajor::new(width, height), vec![0.0f32; width * height])
-    }.show(Rotation::R0);
+    };
+    v.show(Rotation::R0);
+    
+    v.img.save("duffing.png").unwrap();
 }
