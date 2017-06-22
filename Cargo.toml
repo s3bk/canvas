@@ -20,6 +20,7 @@ features = ["png_codec"]
 [dev-dependencies]
 fmath = { version = "*", git = "https://github.com/s3bk/fmath.git" }
 simd = "*"
+show = { git = "https://github.com/s3bk/show.git" }
 
 [profile.release]
 opt-level = 3

@@ -8,8 +8,10 @@ extern crate tuple;
 extern crate num;
 extern crate math;
 extern crate fmath;
+extern crate show;
+extern crate image;
 
-use canvas::plot::{TracedItem, LineStyle};
+use canvas::plot::{LineStyle};
 use tuple::T2;
 use num::Num;
 use canvas::plot::{Figure};
@@ -19,30 +21,8 @@ use canvas::colormap;
 use math::integrate::Integration;
 use math::real::Real;
 use fmath::*;
-
-/// F: closure that defines the function to integrate
-/// N: data type to work wit (typically f32 or f64)
-pub struct IntegratedFunction<F, N: Num=f64> {
-    func:   F,
-    init:   T2<N, N>,
-    step:   N,
-}
-impl<F, N: Num> IntegratedFunction<F, N> {
-    pub fn new(f: F, init: T2<N, N>, step: N) -> IntegratedFunction<F, N> {
-        IntegratedFunction {
-            func:   f,
-            init:   init,
-            step:   step
-        }
-    }
-}
-impl<F, N: Real + Num + 'static> TracedItem<N> for IntegratedFunction<F, N>
-    where F: Fn(N, T2<N, N>) -> T2<N, N>
-{
-    fn trace<'a>(&'a self) -> Box<Iterator<Item=T2<N, N>> + 'a> {
-        box Integration::new(&self.func, self.init, N::zero(), self.step)
-    }
-}
+use image::RgbaImage;
+use show::{Visible, Rotation};
 
 fn cos(x: f32) -> f32 {
     let x = f32x8::splat(x);
@@ -67,32 +47,37 @@ fn duffing(ɛ: f32, λ: f32, _Ω: f32, α: f32, β: f32)
     }
 }
 
+pub struct Viewer {
+    fig:    Figure<f32>,
+    img:    RgbaImage,
+    map:    Array<Vec<f32>, RowMajor>
+}
+impl Visible for Viewer {
+    fn update(&mut self, t: f64) -> &RgbaImage {
+        self.fig.draw_on(&mut self.map);
+        colormap::map_to(&self.map, &*colormap::MAP_STEEL, &mut self.img);
+        &self.img
+    }
+}
+
 fn main() {
     let width = 1024;
     let height = 1024;
 
-    let mut buf = vec![0.0f32; width * height];
-    
-    let mut map = Array::new(RowMajor::new(width, height), buf);
-    
-    Figure::new(-4.0f32 .. 4.0, -6.0 .. 6.0)
-    //.trace(
-    .trace(
-        IntegratedFunction::new(
+    let mut f = Figure::new(-4.0f32 .. 4.0, -6.0 .. 6.0);
+    f.trace(
+        Integration::new(
             duffing(7.72, 0.2, 1.0, 0.0, 1.0),
             T2(1.0, 1.0),
+            0.0,
             1e-3
         ),
-        10_000_000
-    )
-    .draw_on(&mut map);
+        100_000
+    );
     
-    map.run_mut(|meta, data| {
-        data.map(|x| x.sqrt())
-    });
-    
-    //colormap::map(&map, &&colormap::MAP_COLORFUL[..] as &colormap::ColorMap)
-    colormap::grayscale(&map)
-    .save("data/test_duffing.png")
-    .unwrap();
+    Viewer {
+        fig:    f,
+        img:    RgbaImage::new(width as u32, height as u32),
+        map:    Array::new(RowMajor::new(width, height), vec![0.0f32; width * height])
+    }.show(Rotation::R0);
 }

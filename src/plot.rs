@@ -9,9 +9,6 @@ use math::prelude::*;
 pub trait SampleItem<N: Real> {
     fn sample(&self, rng: &mut rand::ThreadRng) -> T2<N, N>;
 }
-pub trait TracedItem<N: Real> {
-    fn trace<'a>(&'a self) -> Box<Iterator<Item=T2<N, N>> + 'a>;
-}
 
 #[derive(Copy, Clone)]
 pub enum LineStyle {
@@ -26,7 +23,7 @@ pub enum Item<N: Real> {
     /// the second argument is the number of points to draw
     /// the third argument is the strength to draw with (line intensity)
     /// forth argument 
-    Traced(Box<TracedItem<N>>, usize)
+    Traced(Box<Iterator<Item=T2<N, N>>>, usize)
 }
 
 pub struct XY<N> {
@@ -99,14 +96,14 @@ impl<N> Figure<N> where N: Real
     }
 
     pub fn trace<S>(&mut self, item: S, iterations: usize)
-     -> &mut Figure<N> where S: TracedItem<N> + 'static
+     -> &mut Figure<N> where S: Iterator<Item=T2<N, N>> + 'static
     {
         self.items.push(Item::Traced(Box::new(item), iterations));
         self
     }
 
     /** do the actutal plotting on a canvas of the given size **/
-    pub fn draw<C>(&self, width: usize, height: usize) -> C where
+    pub fn draw<C>(&mut self, width: usize, height: usize) -> C where
         C: Canvas, C::Data: Initial, <C::Data as Data>::Item: Real
     {
         let mut canvas = C::new(
@@ -117,7 +114,7 @@ impl<N> Figure<N> where N: Real
         canvas
     }
     
-    pub fn draw_on<C>(&self, canvas: &mut C)
+    pub fn draw_on<C>(&mut self, canvas: &mut C)
     where C: Canvas, <C::Data as Data>::Item: Real
     {
         let ref mut rng = rand::thread_rng();
@@ -126,23 +123,23 @@ impl<N> Figure<N> where N: Real
             let subpixel_size: T2<N, N> = T2(subpixel_width, subpixel_height).cast().unwrap();
             let canvas_scale: T2<N, N> = subpixel_size / self.size;
 
-            for item in self.items.iter() {
+            let offset = self.offset;
+            for item in self.items.iter_mut() {
                 match *item {
                     Item::Sampled(ref item, samples) => data.apply(
                         (0 .. samples).map(|_| {
                             let p = item.sample(rng);
-                            (p - self.offset) * canvas_scale + T2::uniform01(rng)
+                            (p - offset) * canvas_scale + T2::uniform01(rng)
                         })
                         .filter_map(|p: T2<N, N>| p.clip(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
                         .map(|T2(x, y)| (meta.index((x, y)), Real::int(1))),
                         
                         |v, increment| v + increment
                     ),
-                    Item::Traced(ref item, iterations) => {
+                    Item::Traced(ref mut item, iterations) => {
                         data.apply(
-                            item.trace()
-                            .take(iterations)
-                            .map(|p| (p - self.offset) * canvas_scale)
+                            item.by_ref().take(iterations)
+                            .map(|p| (p - offset) * canvas_scale)
                             .map(|p| p + T2::uniform01(rng))
                             .filter_map(|p| p.cast())
                             //.filter_map(|p: T2<N, N>| p.clip(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
