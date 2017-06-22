@@ -11,7 +11,7 @@ extern crate winit;
 extern crate canvas;
 extern crate tuple;
 extern crate math;
-extern crate fmath;
+//extern crate fmath;
 
 use canvas::plot::{LineStyle};
 use tuple::T2;
@@ -20,12 +20,15 @@ use canvas::array::{Array, RowMajor};
 use canvas::canvas::{Canvas, Data, Meta};
 use math::integrate::Integration;
 use math::real::Real;
-use fmath::*;
+//use fmath::*;
 use gfx::handle::Texture;
-
+/*
 fn cos(x: f32) -> f32 {
     let x = f32x8::splat(x);
     poly8_f32x8_avx(POLY32_COS_8_PI, x * x).extract(0)
+}*/
+fn cos(x: f32) -> f32 {
+    x.cos()
 }
 
 #[allow(non_snake_case)]
