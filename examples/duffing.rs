@@ -61,13 +61,13 @@ impl Visible for Viewer {
 }
 
 fn main() {
-    let width = 2024;
+    let width = 2048;
     let height = 1024;
 
     let mut f = Figure::new(-4.0f32 .. 4.0, -6.0 .. 6.0);
     f.trace(
         Integration::new(
-            duffing(7.72, 0.2, 1.0, 0.0, 1.0),
+            duffing(7.5, 0.15, 1.0, 0.0, 1.0),
             T2(1.0, 1.0),
             0.0,
             1e-3

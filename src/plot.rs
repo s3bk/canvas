@@ -104,7 +104,9 @@ impl<N> Figure<N> where N: Real
 
     /** do the actutal plotting on a canvas of the given size **/
     pub fn draw<C>(&mut self, width: usize, height: usize) -> C where
-        C: Canvas, C::Data: Initial, <C::Data as Data>::Item: Real
+        C: Canvas, C::Data: Initial, 
+        u8: Cast<<C::Data as Data>::Item>, 
+        <C::Data as Data>::Item: Add<Output=<C::Data as Data>::Item> + Copy
     {
         let mut canvas = C::new(
             C::Meta::new(width, height),
@@ -115,7 +117,9 @@ impl<N> Figure<N> where N: Real
     }
     
     pub fn draw_on<C>(&mut self, canvas: &mut C)
-    where C: Canvas, <C::Data as Data>::Item: Real
+    where C: Canvas,
+        u8: Cast<<C::Data as Data>::Item>, 
+        <C::Data as Data>::Item: Add<Output=<C::Data as Data>::Item> + Copy
     {
         let ref mut rng = rand::thread_rng();
         canvas.run_mut(|meta, data| {
@@ -124,6 +128,7 @@ impl<N> Figure<N> where N: Real
             let canvas_scale: T2<N, N> = subpixel_size / self.size;
 
             let offset = self.offset;
+            let one = (1u8).cast().unwrap();
             for item in self.items.iter_mut() {
                 match *item {
                     Item::Sampled(ref item, samples) => data.apply(
@@ -132,7 +137,7 @@ impl<N> Figure<N> where N: Real
                             (p - offset) * canvas_scale + T2::uniform01(rng)
                         })
                         .filter_map(|p: T2<N, N>| p.clip(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
-                        .map(|T2(x, y)| (meta.index((x, y)), Real::int(1))),
+                        .map(|T2(x, y)| (meta.index((x, y)), one)),
                         
                         |v, increment| v + increment
                     ),
@@ -143,7 +148,7 @@ impl<N> Figure<N> where N: Real
                             .map(|p| p + T2::uniform01(rng))
                             .filter_map(|p| p.cast())
                             //.filter_map(|p: T2<N, N>| p.clip(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
-                            .map(|T2(x, y)| (meta.index((x, y)), Real::int(1))),
+                            .map(|T2(x, y)| (meta.index((x, y)), one)),
                             
                             |v, increment| v + increment
                         );

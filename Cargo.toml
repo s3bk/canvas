@@ -11,6 +11,12 @@ tuple = { version = "*", git = "https://github.com/s3bk/tuple.git" }
 palette = "*"
 lazy_static = "*"
 math = { version = "*", git = "https://github.com/s3bk/math.git" }
+gfx_app = { path = "../gfx" }
+gfx = { path = "../gfx/src/render" }
+gfx_core = { path = "../gfx/src/core" }
+fmath = { version = "*", git = "https://github.com/s3bk/fmath.git" }
+winit = "*"
+simd = "*"
 
 [dependencies.image]
 version = "0.14"
@@ -18,8 +24,6 @@ default-features = false
 features = ["png_codec"]
 
 [dev-dependencies]
-fmath = { version = "*", git = "https://github.com/s3bk/fmath.git" }
-simd = "*"
 show = { git = "https://github.com/s3bk/show.git" }
 
 [profile.release]

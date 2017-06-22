@@ -133,8 +133,8 @@ pub struct RowMajor {
     height: usize
 }
 pub struct Array<D, M> {
-    data:   D,
-    meta:   M
+    pub data:   D,
+    pub meta:   M
 }
 
 impl<D, M> Canvas for Array<D, M> where D: Data, M: Meta
