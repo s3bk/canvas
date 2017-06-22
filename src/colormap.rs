@@ -19,7 +19,8 @@ lazy_static! {
     ];
     pub static ref MAP_STEEL: Vec<(f32, Lch)> = vec![
         (0.0, Lch::new(1.0, 0.0, LabHue::from_radians(-2. * PI / 3.))),
-        (0.2, Lch::new(1.0, 0.2, LabHue::from_radians(-2. * PI / 3.))),
+        (0.1, Lch::new(0.9, 0.1, LabHue::from_radians(-2. * PI / 3.))),
+        (0.2, Lch::new(0.8, 0.2, LabHue::from_radians(-2. * PI / 3.))),
         (1.0, Lch::new(0.0, 0.5, LabHue::from_radians(-2. * PI / 3.))),
     ];
 }
