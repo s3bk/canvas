@@ -25,6 +25,8 @@ features = ["png_codec"]
 
 [dev-dependencies]
 show = { git = "https://github.com/s3bk/show.git" }
+cpal = "*"
+futures = "*"
 
 [profile.release]
 opt-level = 3
