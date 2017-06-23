@@ -77,7 +77,12 @@ impl Default for DuffingParams {
     }
 }
 
-fn audio(rx: Receiver<DuffingParams>) {
+enum Command {
+    Update(DuffingParams),
+    Reset(DuffingParams, T2<f32, f32>, f32)
+}
+
+fn audio(rx: Receiver<Command>) {
     use std::sync::Arc;
     use futures::stream::Stream;
     use futures::task;
@@ -113,16 +118,28 @@ fn audio(rx: Receiver<DuffingParams>) {
     
     voice.play();
     task::spawn(stream.for_each(move |buffer| -> Result<_, ()> {
-        if let Ok(params) = rx.try_recv() {
-            let t = integrator.t;
-            let y = integrator.y;
-            
-            integrator = Integration::new(
-                duffing(params), // the function to integrate
-                y, // initial value
-                t, // inital time
-                440. / samples_rate // step size
-            );
+        if let Ok(cmd) = rx.try_recv() {
+            match cmd {
+                Command::Update(params) => {
+                    let t = integrator.t;
+                    let y = integrator.y;
+                    
+                    integrator = Integration::new(
+                        duffing(params), // the function to integrate
+                        y, // initial value
+                        t, // inital time
+                        440. / samples_rate // step size
+                    );
+                },
+                Command::Reset(params, y, t) => {
+                    integrator = Integration::new(
+                        duffing(params), // the function to integrate
+                        y, // initial value
+                        t, // inital time
+                        440. / samples_rate // step size
+                    );
+                }
+            }
         }
         let mut data_source = integrator.by_ref()
         .map(|v| v * T2(0.1, 0.02));
@@ -215,7 +232,7 @@ struct App<R: Resources>{
     tex:        Texture<R, gfx::format::R32>,
     params:     DuffingParams,
     select:     Selector,
-    tx:         Sender<DuffingParams>
+    tx:         Sender<Command>
 }
 
 impl<R: Resources> App<R> {
@@ -377,7 +394,7 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
                     Alpha =>    p.alpha *= mul,
                     Beta =>     p.beta *= mul
                 }
-                self.tx.send(p).unwrap();
+                self.tx.send(Command::Update(p)).unwrap();
                 self.params = p;
                 println!("{:?}", p);
             },
@@ -391,6 +408,9 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
                     for v in self.map.data.iter_mut() {
                         *v = 0;
                     }
+                    let (y, t) = (T2(1.0, 0.0), 0.0);
+                    self.integrator = (y, t);
+                    self.tx.send(Command::Reset(self.params, y, t));
                 },
                 _ => ()
             },
