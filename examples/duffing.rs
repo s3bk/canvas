@@ -286,12 +286,10 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
         let map = Array::new(RowMajor::new(width, height), vec![0; width * height]);
         
         let vs = gfx_app::shade::Source {
-            glsl_120: include_bytes!("shader/blend_120.glslv"),
             glsl_150: include_bytes!("shader/blend_150.glslv"),
             .. gfx_app::shade::Source::empty()
         };
         let ps = gfx_app::shade::Source {
-           // glsl_120: include_bytes!("shader/blend_120.glslf"),
             glsl_150: include_bytes!("shader/blend_150.glslf"),
             .. gfx_app::shade::Source::empty()
         };
