@@ -4,6 +4,8 @@
 #![feature(inclusive_range_syntax)]
 
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate gfx;
 extern crate gfx_app;
 extern crate gfx_core;
@@ -15,11 +17,12 @@ extern crate math;
 extern crate futures;
 extern crate cpal;
 extern crate rand;
+extern crate rusttype;
 //extern crate fmath;
 
 use gfx_app::{ColorFormat};
 use canvas::plot::{LineStyle};
-use tuple::{T2, TupleElements};
+use tuple::{T2, TupleElements, Splat};
 use canvas::array::{Array, RowMajor};
 use canvas::canvas::{Canvas, Data, Meta};
 use math::integrate::Integration;
@@ -27,9 +30,20 @@ use math::real::Real;
 use math::cast::Cast;
 //use fmath::*;
 use gfx::handle::Texture;
-
+use gfx::Bundle;
+use gfx::texture;
+use gfx_core::Resources;
+use gfx_core::texture::NewImageInfo;
+use gfx::format::{D32, R32, Float, Uint};
 use std::thread;
 use std::sync::mpsc::{channel, Sender, Receiver};
+use rusttype::{Font, FontCollection, Scale, Point};
+
+lazy_static!{
+    static ref LABEL_FONT: Font<'static> = FontCollection::from_bytes(
+        &include_bytes!("fonts/LiberationSerif-Regular.ttf")[..]
+    ).font_at(0).unwrap();
+}
 
 /*
 fn cos(x: f32) -> f32 {
@@ -52,6 +66,7 @@ struct DuffingParams {
 fn duffing(p: DuffingParams)
  -> impl Fn(f32, T2<f32, f32>) -> T2<f32, f32>
 {
+    // epsilon * cos(omega t) - lambda dx/dt - x * (alpha + x^2 * beta)
     use std::intrinsics::{fmul_fast, cosf32};
     move |t, s| {
         unsafe {
@@ -65,14 +80,16 @@ fn duffing(p: DuffingParams)
     }
 }
 
+// DuffingParams { epsilon: 17.780767, lambda: 0.6265935, omega: 4.5825043, alpha: 9.212474, beta: 0.005351869 }
+
 impl Default for DuffingParams {
     fn default() -> DuffingParams {
         DuffingParams {
-            epsilon: 10.446971,
-            lambda: 0.00013858214,
-            omega: 3.2886522,
-            alpha: 0.000000030056544,
-            beta: 64.18658
+            epsilon: 7.72,
+            lambda: 0.02,
+            omega: 1.,
+            alpha: 0.01,
+            beta: 1.0
         }
     }
 }
@@ -149,7 +166,9 @@ fn audio(rx: Receiver<Command>) {
                 for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
                     let value: T2<u16, u16> = value.map(|f| 
                         (0.5 * f + 0.5) * (std::u16::MAX as f32)
-                    ).cast().unwrap_or(T2(0, 0));
+                    ).cast_clamped(
+                        T2::splat(std::u16::MIN) ... T2::splat(std::u16::MAX)
+                    );
                     
                     for (ch, out) in sample.iter_mut().enumerate() {
                         *out = value.get(ch).cloned().unwrap_or(0);
@@ -161,7 +180,9 @@ fn audio(rx: Receiver<Command>) {
                 for (sample, value) in buffer.chunks_mut(format.channels.len()).zip(&mut data_source) {
                     let value: T2<i16, i16> = value.map(|f|
                         f * (std::i16::MAX as f32)
-                    ).cast().unwrap_or(T2(0, 0));
+                    ).cast_clamped(
+                        T2::splat(std::i16::MIN) ... T2::splat(std::i16::MAX)
+                    );
                     
                     for (ch, out) in sample.iter_mut().enumerate() {
                         *out = value.get(ch).cloned().unwrap_or(0);
@@ -184,9 +205,6 @@ fn audio(rx: Receiver<Command>) {
     event_loop.run();
 }
 
-use gfx::Bundle;
-use gfx::texture;
-use gfx_core::Resources;
 
 gfx_defines!{
     vertex Vertex {
@@ -201,6 +219,7 @@ gfx_defines!{
     pipeline pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
         canvas: gfx::TextureSampler<u32> = "t_Canvas",
+        labels: gfx::TextureSampler<f32> = "t_Labels",
         exp: gfx::Global<f32> = "i_Exp",
         size:   gfx::Global<[f32; 2]> = "i_Size",
         locals: gfx::ConstantBuffer<Locals> = "Locals",
@@ -222,17 +241,29 @@ enum Selector {
     Lambda,
     Omega,
     Alpha,
-    Beta
+    Beta,
+    Exp
 }
 
+#[derive(Debug, Copy, Clone)]
+struct Params {
+    duffing:    DuffingParams,
+    exp:        f32
+}
+    
+
+const LABEL_HEIGHT: usize = 50;
+const NUM_LABELS: usize = 5;
 struct App<R: Resources>{
     bundle:     Bundle<R, pipe::Data<R>>,
     integrator: (T2<f32, f32>, f32),
     map:        Array<Vec<u32>, RowMajor>,
-    tex:        Texture<R, gfx::format::R32>,
-    params:     DuffingParams,
+    tex_canvas: Texture<R, R32>,
+    tex_labels: Texture<R, D32>,
+    params:     Params,
     select:     Selector,
-    tx:         Sender<Command>
+    tx:         Sender<Command>,
+    label_queue: Vec<(Vec<f32>, NewImageInfo)>,
 }
 
 impl<R: Resources> App<R> {
@@ -249,7 +280,7 @@ impl<R: Resources> App<R> {
         let (y0, t0) = self.integrator;
         
         let mut integration = Integration::new(
-            duffing(self.params),
+            duffing(self.params.duffing),
             y0,
             t0,
             1e-3
@@ -260,7 +291,7 @@ impl<R: Resources> App<R> {
                 .take(iterations)
                 .map(|p| (p + offset) * canvas_scale)
                 .map(|p| p + T2::uniform01(rng))
-                .filter_map(|p: T2<f32, f32>| p.clip(T2(0, 0) ... size - T2(1, 1)))
+                .filter_map(|p: T2<f32, f32>| p.cast_clipped(T2(0, 0) ... size - T2(1, 1)))
                 .map(|T2(x, y)| (meta.index((x, y)), one)),
                 
                 |v, increment| v + increment
@@ -269,6 +300,48 @@ impl<R: Resources> App<R> {
         
         self.integrator = (integration.y, integration.t);
     }
+    
+    pub fn update_label(&mut self, label: usize) {
+        let p = &self.params.duffing;
+        let text = match label {
+            0 => format!("ɛ: {:10.7}", p.epsilon),
+            1 => format!("λ: {:10.7}", p.lambda),
+            2 => format!("Ω: {:10.7}", p.omega),
+            3 => format!("α: {:10.7}", p.alpha),
+            4 => format!("β: {:10.7}", p.beta),
+            _ => panic!()
+        };
+    
+        let size: T2<usize, usize> = self.map.meta.size().into();
+        let width = size.0 / NUM_LABELS;
+        let mut buffer = vec![0.0f32; width * LABEL_HEIGHT]; // TODO: avoid allocation (jenga?)
+        let scale = Scale::uniform(30.);
+        let start = Point { x: 10., y: 40. };
+        for glyph in LABEL_FONT.layout(&text, scale, start) {
+            if let Some(bb) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    let x = x as i32 + bb.min.x;
+                    let y = y as i32 + bb.min.y;
+                // println!("{} {} {}", x, y, v);
+                    if x >= 0 && (x as usize) < width && y >= 0 && (y as usize) < LABEL_HEIGHT {
+                        buffer[x as usize + (y as usize) * width] += v;
+                    }
+                });
+            }
+        }
+        let info = NewImageInfo {
+            xoffset:    (label * width) as u16,
+            yoffset:    0,
+            zoffset:    0,
+            width:      width as u16,
+            height:     LABEL_HEIGHT as u16,
+            depth:      0,
+            format:     (),
+            mipmap:     0
+        };
+        self.label_queue.push((buffer, info));
+    }
+
 }
 
 impl<R: Resources> gfx_app::Application<R> for App<R> {
@@ -286,11 +359,11 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
         let map = Array::new(RowMajor::new(width, height), vec![0; width * height]);
         
         let vs = gfx_app::shade::Source {
-            glsl_150: include_bytes!("shader/blend_150.glslv"),
+            glsl_150: include_bytes!("shader/canvas_150.glslv"),
             .. gfx_app::shade::Source::empty()
         };
         let ps = gfx_app::shade::Source {
-            glsl_150: include_bytes!("shader/blend_150.glslf"),
+            glsl_150: include_bytes!("shader/canvas_150.glslf"),
             .. gfx_app::shade::Source::empty()
         };
 
@@ -307,68 +380,86 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
         let (vbuf, slice) = factory.create_vertex_buffer_with_slice(&vertex_data, ());
 
         let (width, height) = map.meta.size();
-        let kind = texture::Kind::D2(
+        let kind_canvas = texture::Kind::D2(
             width as texture::Size,
             height as texture::Size,
             texture::AaMode::Single
         );
-        let tex = factory.create_texture::<gfx::format::R32>(
-            kind, 1,
+        let kind_labels = texture::Kind::D2(
+            width as texture::Size,
+            LABEL_HEIGHT as texture::Size,
+            texture::AaMode::Single
+        );
+        let tex_canvas = factory.create_texture::<R32>(
+            kind_canvas, 1,
             gfx_core::memory::SHADER_RESOURCE,
             gfx::memory::Usage::Dynamic, Some(gfx::format::ChannelType::Uint)
-        ).expect("create texture");
-        let sampler = factory.create_sampler(SamplerInfo::new(
-            FilterMethod::Scale,
-            WrapMode::Clamp
-        ));
+        ).expect("create canvas texture");
+        let tex_labels = factory.create_texture::<D32>(
+            kind_labels, 1,
+            gfx_core::memory::SHADER_RESOURCE,
+            gfx::memory::Usage::Dynamic, Some(gfx::format::ChannelType::Float)
+        ).expect("create labels texture");
         
-        let pso = match factory.create_pipeline_simple(
+        let pso = factory.create_pipeline_simple(
             vs.select(backend).expect("failed vertex shader"),
             ps.select(backend).expect("failed pixel shader"),
             pipe::new()
-        ) {
-            Err(Program(Pixel(CompilationFailed(s)))) => {
-                println!("{}", s);
-                panic!();
-            },
-            Err(e) => panic!(e),
-            Ok(pso) => pso
-        };
+        ).unwrap();
+        
         
         let cbuf = factory.create_constant_buffer(1);
-        let canvas = factory.view_texture_as_shader_resource::<u32>(&tex, (0, 0), gfx::format::Swizzle::new()).expect("as shader ressource");
+        let canvas = factory.view_texture_as_shader_resource::<(R32, Uint)>(&tex_canvas, (0, 0), gfx::format::Swizzle::new()).expect("as shader ressource");
+        
+        let labels = factory.view_texture_as_shader_resource::<(D32, Float)>(&tex_labels, (0, 0), gfx::format::Swizzle::new()).expect("as shader ressource");
         
         let data = pipe::Data {
             vbuf:   vbuf,
-            canvas: (canvas, sampler),
+            canvas: (canvas, factory.create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp))),
+            labels: (labels, factory.create_sampler_linear()),
             exp:    1.,
             size:   [width as f32, height as f32],
             locals: cbuf,
-            out:    window_targets.color,
+            out:    window_targets.color.clone(),
         };
-
+        
         let (tx, rx) = channel();
         thread::spawn(move || audio(rx));
         
-        App {
+        let mut app = App {
             bundle:     Bundle::new(slice, pso, data),
             map:        map,
             integrator: (T2(0.5, 0.0), 0.0),
-            tex:        tex,
-            params:     DuffingParams::default(),
+            tex_canvas: tex_canvas,
+            tex_labels: tex_labels,
+            params:     Params {
+                duffing:    DuffingParams::default(),
+                exp:        1.0
+            },
             select:     Selector::Epsilon,
-            tx:         tx
+            tx:         tx,
+            label_queue: vec![]
+        };
+        
+        for p in 0 .. 5 {
+            app.update_label(p);
         }
+        
+        app
     }
 
     
     fn render<C: gfx::CommandBuffer<R>>(&mut self, encoder: &mut gfx::Encoder<R, C>) {
         self.trace(50_000);
-        
-        let view_info = self.tex.get_info().to_image_info(0);
-        encoder.update_texture::<gfx::format::R32, u32>(&self.tex, None, view_info, &self.map.data).expect("update texture");
-        self.bundle.data.exp = 1.0;
-        let locals = Locals { exp: 1. };
+        for (buffer, info) in self.label_queue.drain(..) {
+            encoder.update_texture::<gfx::format::D32, (D32, Float)>(
+                &self.tex_labels, None, info, &buffer
+            ).expect("update texture");
+        }
+        let view_info = self.tex_canvas.get_info().to_image_info(0);
+        encoder.update_texture::<gfx::format::R32, (R32, Uint)>(&self.tex_canvas, None, view_info, &self.map.data).expect("update texture");
+        self.bundle.data.exp = self.params.exp;
+        let locals = Locals { exp: self.params.exp };
         encoder.update_constant_buffer(&self.bundle.data.locals, &locals);
         encoder.clear(&self.bundle.data.out, [0.0; 4]);
         self.bundle.encode(encoder);
@@ -385,16 +476,20 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
                     MouseScrollDelta::PixelDelta(dx, dy) => 1.01f32.powf(dy)
                 };
                 let mut p = self.params;
-                match self.select {
-                    Epsilon =>  p.epsilon *= mul,
-                    Lambda =>   p.lambda *= mul,
-                    Omega =>    p.omega *= mul,
-                    Alpha =>    p.alpha *= mul,
-                    Beta =>     p.beta *= mul
-                }
-                self.tx.send(Command::Update(p)).unwrap();
+                let label = match self.select {
+                    Epsilon =>  { p.duffing.epsilon *= mul; Some(0) },
+                    Lambda =>   { p.duffing.lambda *= mul;  Some(1) },
+                    Omega =>    { p.duffing.omega *= mul;   Some(2) },
+                    Alpha =>    { p.duffing.alpha *= mul;   Some(3) },
+                    Beta =>     { p.duffing.beta *= mul;    Some(4) }
+                    Exp =>      { p.exp *= mul;             None    }
+                };
                 self.params = p;
-                println!("{:?}", p);
+                if let Some(label) = label {
+                    self.tx.send(Command::Update(p.duffing)).unwrap();
+                    println!("{:?}", p);
+                    self.update_label(label);
+                }
             },
             WindowEvent::KeyboardInput(_, _, Some(key), _) => match key {
                 VirtualKeyCode::Key1 => self.select = Epsilon,
@@ -402,13 +497,14 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
                 VirtualKeyCode::Key3 => self.select = Omega,
                 VirtualKeyCode::Key4 => self.select = Alpha,
                 VirtualKeyCode::Key5 => self.select = Beta,
+                VirtualKeyCode::Key0 => self.select = Exp,
                 VirtualKeyCode::C => {
                     for v in self.map.data.iter_mut() {
                         *v = 0;
                     }
                     let (y, t) = (T2(1.0, 0.0), 0.0);
                     self.integrator = (y, t);
-                    self.tx.send(Command::Reset(self.params, y, t));
+                    self.tx.send(Command::Reset(self.params.duffing, y, t));
                 },
                 _ => ()
             },

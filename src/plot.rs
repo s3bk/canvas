@@ -136,7 +136,9 @@ impl<N> Figure<N> where N: Real
                             let p = item.sample(rng);
                             (p - offset) * canvas_scale + T2::uniform01(rng)
                         })
-                        .filter_map(|p: T2<N, N>| p.clip(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
+                        .filter_map(|p: T2<N, N>| p.cast_clipped(
+                            T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)
+                        ))
                         .map(|T2(x, y)| (meta.index((x, y)), one)),
                         
                         |v, increment| v + increment
@@ -146,7 +148,7 @@ impl<N> Figure<N> where N: Real
                             item.by_ref().take(iterations)
                             .map(|p| (p - offset) * canvas_scale)
                             .map(|p| p + T2::uniform01(rng))
-                            .filter_map(|p: T2<N, N>| p.clip(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
+                            .filter_map(|p: T2<N, N>| p.cast_clipped(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)))
                             .map(|T2(x, y)| (meta.index((x, y)), one)),
                             
                             |v, increment| v + increment

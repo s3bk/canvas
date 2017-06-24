@@ -26,6 +26,8 @@ features = ["png_codec"]
 [dev-dependencies]
 cpal = "*"
 futures = "*"
+rusttype = "*"
+lazy_static = "*"
 
 [profile.release]
 opt-level = 3
