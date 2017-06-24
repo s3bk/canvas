@@ -252,7 +252,7 @@ struct Params {
 }
     
 
-const LABEL_HEIGHT: usize = 50;
+const LABEL_HEIGHT: usize = 30;
 const NUM_LABELS: usize = 5;
 struct App<R: Resources>{
     bundle:     Bundle<R, pipe::Data<R>>,
@@ -315,8 +315,8 @@ impl<R: Resources> App<R> {
         let size: T2<usize, usize> = self.map.meta.size().into();
         let width = size.0 / NUM_LABELS;
         let mut buffer = vec![0.0f32; width * LABEL_HEIGHT]; // TODO: avoid allocation (jenga?)
-        let scale = Scale::uniform(30.);
-        let start = Point { x: 10., y: 40. };
+        let scale = Scale::uniform(20.);
+        let start = Point { x: 10., y: LABEL_HEIGHT as f32 - 20. * 0.5 };
         for glyph in LABEL_FONT.layout(&text, scale, start) {
             if let Some(bb) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
