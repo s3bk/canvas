@@ -2,18 +2,11 @@ use canvas::{Canvas, Meta, Data, Initial};
 use rand;
 use std::ops::{Range, Add};
 use std::fmt::Debug;
-use pen::Pen;
 use tuple::*;
 use math::prelude::*;
 
 pub trait SampleItem<N: Real> {
     fn sample(&self, rng: &mut rand::ThreadRng) -> T2<N, N>;
-}
-
-#[derive(Copy, Clone)]
-pub enum LineStyle {
-    Line,
-    Points
 }
 
 pub enum Item<N: Real> {

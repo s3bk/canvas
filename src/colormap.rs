@@ -2,7 +2,6 @@ use image::{Rgba, RgbaImage, Luma, GrayImage};
 use std::f32::consts::PI;
 use std::cmp;
 use palette::{Lch, LabHue, IntoColor, Gradient};
-use num::{ToPrimitive};
 use canvas::{Canvas, Meta, Data};
 
 pub trait ColorMap: Sync {

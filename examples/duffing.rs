@@ -3,14 +3,14 @@
 #![feature(conservative_impl_trait)]
 #![feature(inclusive_range_syntax)]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate gfx;
+#[macro_use] extern crate serde_derive;
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate gfx;
+extern crate serde;
+extern crate toml;
 extern crate gfx_app;
 extern crate gfx_core;
 extern crate winit;
-
 extern crate canvas;
 extern crate tuple;
 extern crate math;
@@ -21,7 +21,6 @@ extern crate rusttype;
 //extern crate fmath;
 
 use gfx_app::{ColorFormat};
-use canvas::plot::{LineStyle};
 use tuple::{T2, TupleElements, Splat};
 use canvas::array::{Array, RowMajor};
 use canvas::canvas::{Canvas, Data, Meta};
@@ -38,6 +37,8 @@ use gfx::format::{D32, R32, Float, Uint};
 use std::thread;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use rusttype::{Font, FontCollection, Scale, Point};
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 
 lazy_static!{
     static ref LABEL_FONT: Font<'static> = FontCollection::from_bytes(
@@ -52,13 +53,14 @@ fn cos(x: f32) -> f32 {
 }*/
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 struct DuffingParams {
     epsilon:    f32,
     lambda:     f32,
     omega:      f32,
     alpha:      f32,
-    beta:       f32
+    beta:       f32,
+    scale:      T2<f32, f32>
 }
 
 #[allow(non_snake_case)]
@@ -89,7 +91,8 @@ impl Default for DuffingParams {
             lambda: 0.02,
             omega: 1.,
             alpha: 0.01,
-            beta: 1.0
+            beta: 1.0,
+            scale:  T2(0.1, 0.05)
         }
     }
 }
@@ -126,40 +129,37 @@ fn audio(rx: Receiver<Command>) {
     
     // Produce a sinusoid of maximum amplitude.
     let samples_rate = format.samples_rate.0 as f32;
+    let params = DuffingParams::default();
+    let mut scale = params.scale;
+    
     let mut integrator = Integration::new(
-        duffing(DuffingParams::default()), // the function to integrate
+        duffing(params), // the function to integrate
         T2(1.0, 1.0), // initial value
         0.0, // inital time
-        440. / samples_rate // step size
+        440. / samples_rate, // step size
+        2.0 * std::f32::consts::PI / params.omega
     );
     
     voice.play();
     task::spawn(stream.for_each(move |buffer| -> Result<_, ()> {
         if let Ok(cmd) = rx.try_recv() {
-            match cmd {
-                Command::Update(params) => {
-                    let t = integrator.t;
-                    let y = integrator.y;
-                    
-                    integrator = Integration::new(
-                        duffing(params), // the function to integrate
-                        y, // initial value
-                        t, // inital time
-                        440. / samples_rate // step size
-                    );
-                },
-                Command::Reset(params, y, t) => {
-                    integrator = Integration::new(
-                        duffing(params), // the function to integrate
-                        y, // initial value
-                        t, // inital time
-                        440. / samples_rate // step size
-                    );
-                }
-            }
+            let (params, y, t) = match cmd {
+                Command::Update(params) => (params, integrator.y, integrator.t),
+                Command::Reset(params, y, t) => (params, y, t)
+            };
+            integrator = Integration::new(
+                duffing(params), // the function to integrate
+                y, // initial value
+                t, // inital time
+                440. / samples_rate, // step size,
+                2.0 * std::f32::consts::PI / params.omega
+            );
+            scale = params.scale;
         }
+        
         let mut data_source = integrator.by_ref()
-        .map(|v| v * T2(0.1, 0.02));
+        .map(|v| v * scale)
+        .map(|T2(x, y)| T2(x - y, x + y));
         
         match buffer {
             cpal::UnknownTypeBuffer::U16(mut buffer) => {
@@ -236,13 +236,16 @@ impl Vertex {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 enum Selector {
     Epsilon,
     Lambda,
     Omega,
     Alpha,
     Beta,
-    Exp
+    Exp,
+    ScaleX,
+    ScaleY
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -253,7 +256,6 @@ struct Params {
     
 
 const LABEL_HEIGHT: usize = 30;
-const NUM_LABELS: usize = 5;
 struct App<R: Resources>{
     bundle:     Bundle<R, pipe::Data<R>>,
     integrator: (T2<f32, f32>, f32),
@@ -267,14 +269,40 @@ struct App<R: Resources>{
 }
 
 impl<R: Resources> App<R> {
+    fn init(mut self) -> Self {
+        use self::Selector::*;
+        match File::open("duffing.toml") {
+            Err(e) => println!("faild to open duffing.toml: {:?}", e),
+            Ok(mut f) => {
+                let mut s = String::new();
+                let _ = f.read_to_string(&mut s);
+                toml::de::from_str(&s)
+                .map(|params| self.params.duffing = params);
+            }
+        }
+        
+        for &d in &[Epsilon, Lambda, Omega, Alpha, Beta, ScaleX, ScaleY] {
+            self.select = d;
+            self.update_label();
+        }
+        self
+    }
+    fn save(&self) {
+        OpenOptions::new().write(true).truncate(true).open("duffing.toml")
+        .map(|mut f| {
+            let toml = toml::ser::to_string(&self.params.duffing).unwrap();
+            f.write(toml.as_bytes());
+            println!("saved");
+        });
+    }
     fn trace(&mut self, iterations: usize) {
         let ref mut rng = rand::thread_rng();
         let size: T2<usize, usize> = self.map.meta.size().into();
         let sizef: T2<f32, f32> = size.cast().unwrap();
         let bounds = T2(20.0f32, 100.0f32);
         
-        let canvas_scale = sizef / bounds;
-        let offset = T2(10., 50.);
+        let scale = sizef * self.params.duffing.scale * 0.5;
+        let offset = sizef * T2(0.5, 0.5);
         let one = (1u8).cast().unwrap();
         
         let (y0, t0) = self.integrator;
@@ -283,13 +311,14 @@ impl<R: Resources> App<R> {
             duffing(self.params.duffing),
             y0,
             t0,
-            1e-3
+            1e-3,
+            2.0 * std::f32::consts::PI / self.params.duffing.omega
         );
         self.map.run_mut(|meta, data| 
             data.apply(
                 integration.by_ref()
                 .take(iterations)
-                .map(|p| (p + offset) * canvas_scale)
+                .map(|p| p * scale + offset)
                 .map(|p| p + T2::uniform01(rng))
                 .filter_map(|p: T2<f32, f32>| p.cast_clipped(T2(0, 0) ... size - T2(1, 1)))
                 .map(|T2(x, y)| (meta.index((x, y)), one)),
@@ -301,45 +330,50 @@ impl<R: Resources> App<R> {
         self.integrator = (integration.y, integration.t);
     }
     
-    pub fn update_label(&mut self, label: usize) {
+    pub fn update_label(&mut self) {
+        use Selector::*;
         let p = &self.params.duffing;
-        let text = match label {
-            0 => format!("ɛ: {:10.7}", p.epsilon),
-            1 => format!("λ: {:10.7}", p.lambda),
-            2 => format!("Ω: {:10.7}", p.omega),
-            3 => format!("α: {:10.7}", p.alpha),
-            4 => format!("β: {:10.7}", p.beta),
-            _ => panic!()
+        let text = match self.select {
+            Epsilon => Some((0, format!("ɛ: {:10.7}", p.epsilon))),
+            Lambda  => Some((1, format!("λ: {:10.7}", p.lambda))),
+            Omega   => Some((2, format!("Ω: {:10.7}", p.omega))),
+            Alpha   => Some((3, format!("α: {:10.7}", p.alpha))),
+            Beta    => Some((4, format!("β: {:10.7}", p.beta))),
+            ScaleX  => Some((5, format!("x: {:10.7}", p.scale.0))),
+            ScaleY  => Some((6, format!("y: {:10.7}", p.scale.1))),
+            _ => None
         };
-    
-        let size: T2<usize, usize> = self.map.meta.size().into();
-        let width = size.0 / NUM_LABELS;
-        let mut buffer = vec![0.0f32; width * LABEL_HEIGHT]; // TODO: avoid allocation (jenga?)
-        let scale = Scale::uniform(20.);
-        let start = Point { x: 10., y: LABEL_HEIGHT as f32 - 20. * 0.5 };
-        for glyph in LABEL_FONT.layout(&text, scale, start) {
-            if let Some(bb) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    let x = x as i32 + bb.min.x;
-                    let y = y as i32 + bb.min.y;
-                // println!("{} {} {}", x, y, v);
-                    if x >= 0 && (x as usize) < width && y >= 0 && (y as usize) < LABEL_HEIGHT {
-                        buffer[x as usize + (y as usize) * width] += v;
-                    }
-                });
+        let num_labels = 7;
+        if let Some((label, text)) = text {
+            let size: T2<usize, usize> = self.map.meta.size().into();
+            let width = size.0 / num_labels;
+            let mut buffer = vec![0.0f32; width * LABEL_HEIGHT]; // TODO: avoid allocation (jenga?)
+            let scale = Scale::uniform(20.);
+            let start = Point { x: 10., y: LABEL_HEIGHT as f32 - 20. * 0.5 };
+            for glyph in LABEL_FONT.layout(&text, scale, start) {
+                if let Some(bb) = glyph.pixel_bounding_box() {
+                    glyph.draw(|x, y, v| {
+                        let x = x as i32 + bb.min.x;
+                        let y = y as i32 + bb.min.y;
+                    // println!("{} {} {}", x, y, v);
+                        if x >= 0 && (x as usize) < width && y >= 0 && (y as usize) < LABEL_HEIGHT {
+                            buffer[x as usize + (y as usize) * width] += v;
+                        }
+                    });
+                }
             }
+            let info = NewImageInfo {
+                xoffset:    (label * width) as u16,
+                yoffset:    0,
+                zoffset:    0,
+                width:      width as u16,
+                height:     LABEL_HEIGHT as u16,
+                depth:      0,
+                format:     (),
+                mipmap:     0
+            };
+            self.label_queue.push((buffer, info));
         }
-        let info = NewImageInfo {
-            xoffset:    (label * width) as u16,
-            yoffset:    0,
-            zoffset:    0,
-            width:      width as u16,
-            height:     LABEL_HEIGHT as u16,
-            depth:      0,
-            format:     (),
-            mipmap:     0
-        };
-        self.label_queue.push((buffer, info));
     }
 
 }
@@ -426,7 +460,7 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
         let (tx, rx) = channel();
         thread::spawn(move || audio(rx));
         
-        let mut app = App {
+        App {
             bundle:     Bundle::new(slice, pso, data),
             map:        map,
             integrator: (T2(0.5, 0.0), 0.0),
@@ -439,13 +473,7 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
             select:     Selector::Epsilon,
             tx:         tx,
             label_queue: vec![]
-        };
-        
-        for p in 0 .. 5 {
-            app.update_label(p);
-        }
-        
-        app
+        }.init()
     }
 
     
@@ -477,28 +505,29 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
                 };
                 let mut p = self.params;
                 let label = match self.select {
-                    Epsilon =>  { p.duffing.epsilon *= mul; Some(0) },
-                    Lambda =>   { p.duffing.lambda *= mul;  Some(1) },
-                    Omega =>    { p.duffing.omega *= mul;   Some(2) },
-                    Alpha =>    { p.duffing.alpha *= mul;   Some(3) },
-                    Beta =>     { p.duffing.beta *= mul;    Some(4) }
-                    Exp =>      { p.exp *= mul;             None    }
+                    Epsilon => p.duffing.epsilon *= mul,
+                    Lambda  => p.duffing.lambda *= mul,
+                    Omega   => p.duffing.omega *= mul,
+                    Alpha   => p.duffing.alpha *= mul,
+                    Beta    => p.duffing.beta *= mul,
+                    Exp     => p.exp *= mul,
+                    ScaleX  => p.duffing.scale.0 *= mul,
+                    ScaleY  => p.duffing.scale.1 *= mul,
                 };
                 self.params = p;
-                if let Some(label) = label {
-                    self.tx.send(Command::Update(p.duffing)).unwrap();
-                    println!("{:?}", p);
-                    self.update_label(label);
-                }
+                self.update_label();
+                self.tx.send(Command::Update(p.duffing)).unwrap();
             },
             WindowEvent::KeyboardInput(_, _, Some(key), _) => match key {
-                VirtualKeyCode::Key1 => self.select = Epsilon,
-                VirtualKeyCode::Key2 => self.select = Lambda,
-                VirtualKeyCode::Key3 => self.select = Omega,
-                VirtualKeyCode::Key4 => self.select = Alpha,
-                VirtualKeyCode::Key5 => self.select = Beta,
-                VirtualKeyCode::Key0 => self.select = Exp,
-                VirtualKeyCode::C => {
+                VirtualKeyCode::Key1    => self.select = Epsilon,
+                VirtualKeyCode::Key2    => self.select = Lambda,
+                VirtualKeyCode::Key3    => self.select = Omega,
+                VirtualKeyCode::Key4    => self.select = Alpha,
+                VirtualKeyCode::Key5    => self.select = Beta,
+                VirtualKeyCode::Key0    => self.select = Exp,
+                VirtualKeyCode::X       => self.select = ScaleX,
+                VirtualKeyCode::Y       => self.select = ScaleY,
+                VirtualKeyCode::C       => {
                     for v in self.map.data.iter_mut() {
                         *v = 0;
                     }
@@ -508,6 +537,7 @@ impl<R: Resources> gfx_app::Application<R> for App<R> {
                 },
                 _ => ()
             },
+            WindowEvent::Closed => self.save(),
             _ => ()
         }
     }

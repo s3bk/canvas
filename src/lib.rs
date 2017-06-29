@@ -2,7 +2,6 @@
 #![feature(inclusive_range_syntax)]
 
 extern crate rand;
-extern crate num;
 extern crate image;
 extern crate tuple;
 extern crate palette;
@@ -12,7 +11,7 @@ extern crate math;
 pub mod canvas;
 pub mod plot;
 pub mod array;
-pub mod pen;
-pub mod colormap;
+//pub mod pen;
+//pub mod colormap;
 
 pub use canvas::Canvas;

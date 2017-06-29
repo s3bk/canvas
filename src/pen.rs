@@ -1,7 +1,7 @@
 use std::mem::swap;
-use num::{cast, Float};
 use std::ops::{AddAssign};
 use tuple::T2;
+use math::Real;
 
 pub struct Pen<F, N> {
     draw:   F,
@@ -9,26 +9,26 @@ pub struct Pen<F, N> {
 }
 
 #[inline(always)]
-fn ipart<N: Float>(x: N) -> N {
+fn ipart<N: Real>(x: N) -> N {
     x.floor()
 }
 
 #[inline(always)]
-fn round<N: Float>(x: N) -> N {
+fn round<N: Real>(x: N) -> N {
     x.round()
 }
 
 #[inline(always)]
-fn fpart<N: Float>(x: N) -> N {
+fn fpart<N: Real>(x: N) -> N {
     x.fract()
 }
 
 #[inline(always)]
-fn rfpart<N: Float>(x: N) -> N {
+fn rfpart<N: Real>(x: N) -> N {
     N::one() - x.fract()
 }
 
-impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Float + AddAssign
+impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
 {
     pub fn new(draw: F) -> Pen<F, N> {
         Pen {
