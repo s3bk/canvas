@@ -1,39 +1,40 @@
 use std::mem::swap;
-use std::ops::{AddAssign};
 use tuple::T2;
-use math::Real;
+use math::cast::Cast;
 
-pub struct Pen<F, N> {
+type N = f32;
+
+pub struct Pen<F> {
     draw:   F,
     p:      T2<N, N>
 }
 
 #[inline(always)]
-fn ipart<N: Real>(x: N) -> N {
+fn ipart(x: N) -> N {
     x.floor()
 }
 
 #[inline(always)]
-fn round<N: Real>(x: N) -> N {
+fn round(x: N) -> N {
     x.round()
 }
 
 #[inline(always)]
-fn fpart<N: Real>(x: N) -> N {
+fn fpart(x: N) -> N {
     x.fract()
 }
 
 #[inline(always)]
-fn rfpart<N: Real>(x: N) -> N {
-    N::one() - x.fract()
+fn rfpart(x: N) -> N {
+    1.0 - x.fract()
 }
 
-impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
+impl<F> Pen<F> where F: FnMut(T2<isize, isize>, N)
 {
-    pub fn new(draw: F) -> Pen<F, N> {
+    pub fn new(draw: F) -> Pen<F> {
         Pen {
             draw:   draw,
-            p:      T2(N::zero(), N::one())
+            p:      T2(0.0, 0.0)
         }
     }
     pub fn line(&mut self, p0: T2<N, N>, p1: T2<N, N>) {
@@ -48,9 +49,10 @@ impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
     pub fn line_to(&mut self, p: T2<N, N>) {
         let T2(mut x0, mut y0) = self.p;
         let T2(mut x1, mut y1) = p;
-        let half = cast(0.5).unwrap();
+        let half = 0.5;
+        let threshold = 0.1;
         
-        if (x1 - x0).abs().max((y1 - y0).abs()) < cast(0.1f32).unwrap() {
+        if (x1 - x0).abs().max((y1 - y0).abs()) < threshold {
             return;
         }
         
@@ -59,7 +61,7 @@ impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
         
         // shortcut to draw pixels
         let mut draw = |x, y, v| {
-            (self.draw)(T2(x, y), cast(v).unwrap());
+            (self.draw)(T2(x, y), v);
         };
         
         // http://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
@@ -78,18 +80,18 @@ impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
         
         let dx = x1 - x0;
         let dy = y1 - y0;
-        let gradient = if dx > N::zero() {
+        let gradient = if dx > 0. {
             dy / dx
         } else {
-            N::one()
+            1.0
         };
         
         // handle first endpoint
         let xend = round(x0);
         let yend = y0 + gradient * (xend - x0);
         let xgap = rfpart(x0 + half);
-        let xpxl1: isize = cast(xend).unwrap();   //this will be used in the main loop
-        let ypxl1: isize = cast(ipart(yend)).unwrap();
+        let xpxl1: isize = xend.cast().unwrap();   //this will be used in the main loop
+        let ypxl1: isize = ipart(yend).cast().unwrap();
         
         let a = xgap * fpart(yend);
         let b = xgap * rfpart(yend);
@@ -109,8 +111,8 @@ impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
         let xend = round(x1);
         let yend = y1 + gradient * (xend - x1);
         let xgap = fpart(x1 + half);
-        let xpxl2: isize = cast(xend).unwrap(); //this will be used in the main loop
-        let ypxl2: isize = cast(ipart(yend)).unwrap();
+        let xpxl2: isize = xend.cast().unwrap(); //this will be used in the main loop
+        let ypxl2: isize = ipart(yend).cast().unwrap();
         
         let a = xgap * fpart(yend);
         let b = xgap * rfpart(yend);
@@ -128,18 +130,18 @@ impl<F, N> Pen<F, N> where F: FnMut(T2<isize, isize>, f32), N: Real + AddAssign
         if steep {
             for x in xpxl1 + 1 .. xpxl2 {
                 let a = fpart(intery);
-                let py: isize = cast(ipart(intery)).unwrap();
+                let py: isize = ipart(intery).cast().unwrap();
                 
-                draw(py,   x, N::one() - a);
+                draw(py,   x, 1.0 - a);
                 draw(py+1, x, a);
                 intery += gradient;
             }
         } else {
             for x in xpxl1 + 1 .. xpxl2 {
                 let a = fpart(intery);
-                let py: isize = cast(ipart(intery)).unwrap();
+                let py: isize = ipart(intery).cast().unwrap();
                 
-                draw(x, py,   N::one() - a);
+                draw(x, py,   1.0 - a);
                 draw(x, py+1, a);
                 intery += gradient;
             }

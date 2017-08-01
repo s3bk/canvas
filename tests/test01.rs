@@ -18,15 +18,6 @@ fn test_plot_luma_sin() {
     grayscale(&canvas).save("data/test_plot_luma_sin.png").unwrap();
 }
 
-#[test]
-fn test_plot_rgb_sin() {
-    let canvas = Figure::new(-1.0 .. 1.0, -1.1 .. 1.1)
-        .sample(XY::new(Box::new(|x: f32| (1.0/x).sin()), -1.0 .. 1.0), 100_000)
-        .draw::<Array<Vec<f32>, RowMajor>>(400, 200);
-        
-    grayscale(&canvas).save("data/test_plot_rgb_sin.png").unwrap();
-}
-
 
 #[test]
 fn test_plot_rgb_nautilus() {

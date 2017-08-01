@@ -1,6 +1,6 @@
 use std::{cmp};
 use std::ops::{Index, IndexMut};
-use canvas::{Canvas, Data, Meta, Initial};
+use canvas::{Canvas, Data, Meta};
 use image::GrayImage;
 
 #[derive(Copy, Clone)]

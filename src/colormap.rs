@@ -1,8 +1,9 @@
 use image::{Rgba, RgbaImage, Luma, GrayImage};
 use std::f32::consts::PI;
-use std::cmp;
 use palette::{Lch, LabHue, IntoColor, Gradient};
 use canvas::{Canvas, Meta, Data};
+use math::real::Real;
+use math::cast::Cast;
 
 pub trait ColorMap: Sync {
     fn build(&self, steps: usize) -> Vec<Rgba<u8>>;
@@ -35,86 +36,62 @@ impl ColorMap for Vec<(f32, Lch)> {
     }
 }
 
-pub fn map<C: Canvas, M: ColorMap>(canvas: &C, colormap: &M) -> RgbaImage
-    where <C::Data as Data>::Item: ToPrimitive
+pub fn map<C, M>(canvas: &C, colormap: &M) -> RgbaImage
+    where C: Canvas, M: ColorMap, <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
 {
-    let (width, height) = canvas.run(|meta, data| meta.size());
+    let (width, height) = canvas.run(|meta, _| meta.size());
     let mut imgbuf = RgbaImage::new(width as u32, height as u32);
     map_to(canvas, colormap, &mut imgbuf);
     imgbuf
 }
-    
 
-pub fn map_to<C: Canvas,  M: ColorMap>(canvas: &C, colormap: &M, imgbuf: &mut RgbaImage)
-    where <C::Data as Data>::Item: ToPrimitive
+fn map_to_index<C, F, O>(canvas: &C, steps: usize, max: Option<<C::Data as Data>::Item>, f: F) -> O
+    where C: Canvas, <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>, F: FnOnce((u32, u32), &Fn(u32, u32) -> usize) -> O
 {
     canvas.run(|meta, data| {
         // figure out max value
         let (width, height) = meta.size();
-        let mut max_value = 0.0f32;
-        for y in 0 .. height {
-            for x in 0 .. width {
-                if let Some(v) = data.get(meta.index((x, y))).to_f32() {
-                    if v > max_value {
+        let max_value = max.unwrap_or_else(|| {
+            let mut max_value = <<C::Data as Data>::Item as Real>::int(0);
+            for y in 0 .. height {
+                for x in 0 .. width {
+                    let &v = data.get(meta.index((x, y)));
+                    if v.gt(max_value) {
                         max_value = v;
                     }
                 }
             }
-        }
+            max_value
+        });
         
-        println!("{}", max_value);
-        if max_value == 0. {
-            return;
-        }
+        let scale = <<C::Data as Data>::Item as Real>::int(steps as i16 - 1) / max_value.sqrt();
         
-        let steps = 1024;
-        let cmap = colormap.build(steps);
-        let scale = (steps - 1) as f32 / max_value.sqrt();
-        
+        f((width as u32, height as u32), &|x, y| {
+            let idx = meta.index((x as usize, height - 1 - y as usize));
+            let v = *data.get(idx);
+            (v.sqrt() * scale).cast_clamped(0 ... steps-1)
+        })
+    })
+}
+pub fn map_to<C, M>(canvas: &C, colormap: &M, imgbuf: &mut RgbaImage)
+    where C: Canvas, M: ColorMap, <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
+{
+    let steps = 1024;
+    let cmap = colormap.build(steps);
+    map_to_index(canvas, steps, None, |_, get| {        
         for (x, y, p) in imgbuf.enumerate_pixels_mut() {
-            let idx = meta.index((x as usize, y as usize));
-            let v = data.get(idx)
-            .to_f32()
-            .map(|v| v.sqrt() * scale)
-            .unwrap_or(0.);
-            *p = cmap[cmp::min(v as usize, steps-1)];
+            *p = cmap[get(x, y)];
         }
     });
 }
 
-pub fn grayscale<C: Canvas>(canvas: &C) -> GrayImage
-    where <C::Data as Data>::Item: ToPrimitive
+pub fn grayscale<C: Canvas>(canvas: &C, max: Option<<C::Data as Data>::Item>) -> GrayImage
+    where <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
 {
-    canvas.run(|meta, data| {
-        // figure out max value
-        let (width, height) = meta.size();
-        let mut max_value = 0.0f32;
-        for y in 0 .. height {
-            for x in 0 .. width {
-                if let Some(v) = data.get(meta.index((x, y))).to_f32() {
-                    if v > max_value {
-                        max_value = v;
-                    }
-                }
-            }
-        }
-        
-        println!("{}", max_value);
+    map_to_index(canvas, 256, max, |(width, height), get| {
         let mut imgbuf = GrayImage::new(width as u32, height as u32);
-        if max_value == 0. {
-            return imgbuf;
-        }
-        
-        let steps = 256;
-        let scale = (steps - 1) as f32 / max_value;
-        
         for (x, y, p) in imgbuf.enumerate_pixels_mut() {
-            let idx = meta.index((x as usize, y as usize));
-            let v = data.get(idx)
-            .to_f32()
-            .map(|v| v * scale)
-            .unwrap_or(0.);
-            *p = Luma { data: [255 - v as u8] };
+            *p = Luma { data: [255 - get(x, y) as u8] };
         }
         
         imgbuf

@@ -1,4 +1,4 @@
-use std::ops::{DerefMut};
+use std::ops::{DerefMut, Add, AddAssign};
 use std::mem;
 
 pub trait Meta {
@@ -16,7 +16,7 @@ pub trait Meta {
 }
 
 pub trait Data {
-    type Item;
+    type Item: Add<Output=Self::Item> + AddAssign;
     
     fn map<F>(&mut self, f: F) where F: Fn(Self::Item) -> Self::Item;
         
@@ -28,7 +28,7 @@ pub trait Data {
 }
 
 pub trait Canvas {
-    type Data: Data;
+    type Data: Data = Vec<f32>;
     type Meta: Meta;
     
     fn run<F, O>(&self, f: F) -> O
@@ -49,7 +49,7 @@ pub trait Initial {
     fn initial(width: usize, height: usize) -> Self;
 }
 
-impl<A, T> Data for A where A: DerefMut<Target=[T]>, T: Default {
+impl<A, T> Data for A where A: DerefMut<Target=[T]>, T: Default + Add<Output=T> + AddAssign {
     type Item = T;
     
     fn map<F>(&mut self, f: F) where F: Fn(Self::Item) -> Self::Item {
