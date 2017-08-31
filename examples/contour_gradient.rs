@@ -48,6 +48,7 @@ impl ChaosRng {
     }
 }
 impl VRng<T2<f32x8, f32x8>> for ChaosRng {
+    #[inline(always)]
     fn next(&mut self) -> T2<f32x8, f32x8> {
         let x = self.x;
         let y = self.y;
@@ -87,7 +88,7 @@ fn main() {
                 let (p, px, py) = code.call(&[x, y, c]);
                 (p, T2(px, py))
             },
-            10_000,
+            100_000,
             10,
             &mut rng
         );

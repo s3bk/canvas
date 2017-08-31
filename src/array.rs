@@ -152,12 +152,14 @@ impl<D, M> Canvas for Array<D, M> where D: Data, M: Meta
         f(&self.meta, &self.data)
     }
     
+    #[inline(always)]    
     fn run_mut<F, O>(&mut self, f: F) -> O
         where F: FnOnce(&M, &mut D) -> O
     {
         f(&self.meta, &mut self.data)
     }
-    
+
+    #[inline(always)]
     fn new(meta: M, data: D) -> Self {
         Array {
             data:   data,

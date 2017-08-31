@@ -7,7 +7,8 @@ pub trait Meta {
     fn size(&self) -> (usize, usize);
     
     /** get the size of one subpixel. this may or may not be the same as pixel_size.
-        defaults to pixel_size. **/
+    defaults to pixel_size. **/
+    #[inline(always)]
     fn subpixel_size(&self) -> (usize, usize) {
         self.size()
     }
@@ -30,10 +31,10 @@ pub trait Data {
 pub trait Canvas {
     type Data: Data = Vec<f32>;
     type Meta: Meta;
-    
+
     fn run<F, O>(&self, f: F) -> O
         where F: FnOnce(&Self::Meta, &Self::Data) -> O;
-        
+
     fn run_mut<F, O>(&mut self, f: F) -> O
         where F: FnOnce(&Self::Meta, &mut Self::Data) -> O;
     
@@ -51,13 +52,15 @@ pub trait Initial {
 
 impl<A, T> Data for A where A: DerefMut<Target=[T]>, T: Default + Add<Output=T> + AddAssign {
     type Item = T;
-    
+
+    #[inline(always)]
     fn map<F>(&mut self, f: F) where F: Fn(Self::Item) -> Self::Item {
         for v in self.iter_mut() {
             *v = f(mem::replace(v, T::default()));
         }
     }
     
+    #[inline(always)]
     fn apply<I, F>(&mut self, it: I, f: F) where
         I: Iterator<Item=(usize, T)>, F: Fn(T, T) -> T
     {
@@ -67,9 +70,12 @@ impl<A, T> Data for A where A: DerefMut<Target=[T]>, T: Default + Add<Output=T> 
         }
     }
     
+    #[inline(always)]
     fn get(&self, index: usize) -> &Self::Item {
         &self[index]
     }
+    
+    #[inline(always)]
     fn get_mut(&mut self, index: usize) -> &mut Self::Item {
         &mut self[index]
     }

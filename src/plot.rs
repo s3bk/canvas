@@ -141,6 +141,7 @@ impl<N, C> Figure<N, C>
         self
     }
 
+    #[inline]
     pub fn contour_gradient<F, V, R>(&mut self, func: F, samples: usize, iterations: usize, rng: &mut R) -> &mut Self
         where F: Fn(T2<V, V>) -> (V, T2<V, V>), V: Real<Scalar=N>, R: VRng<T2<V, V>>
     {
@@ -162,6 +163,7 @@ impl<N, C> Figure<N, C>
                 
                 let r: T2<V, V> = rng.next();
                 let s: T2<V, V> = (p - offset.map(Real::splat)) * canvas_scale.map(Real::splat) + r;
+
                 for e in s.map(Real::values) {
                     let e: T2<N, N> = e;
                     if let Some(T2(x, y)) = e.cast_clipped(T2(0, 0) ... T2(subpixel_width-1, subpixel_height-1)) {
