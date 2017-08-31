@@ -3,6 +3,7 @@
 extern crate canvas;
 extern crate tuple;
 extern crate simd;
+extern crate rand;
 extern crate math;
 
 use canvas::plot::{Figure};
@@ -29,26 +30,29 @@ vsubps ymm0, ymm1, ymm0
 }
 pub struct ChaosRng {
     x: f32x8,
-    y: f32x8
+    y: f32x8,
+    a: f32x8,
+    b: f32x8,
+    c: f32x8
 }
 impl ChaosRng {
     fn new() -> ChaosRng {
+        let mut r = rand::thread_rng();
         ChaosRng {
-            x: f32x8::splat(0.555658),
-            y: f32x8::splat(0.731332)
+            x: f32x8::uniform01(&mut r),
+            y: f32x8::uniform01(&mut r),
+            a: f32x8::splat(1713.312),
+            b: f32x8::splat(3.1415),
+            c: f32x8::splat(5.21313)
         }
     }
 }
 impl VRng<T2<f32x8, f32x8>> for ChaosRng {
     fn next(&mut self) -> T2<f32x8, f32x8> {
-        let a = f32x8::splat(1713.312);
-        let b = f32x8::splat(3.1415);
-        let c = f32x8::splat(7.21313);
-    
         let x = self.x;
         let y = self.y;
-        let k0 = x * x * y * a + b;
-        let k1 = c * y * (b - y) + x;
+        let k0 = x * x * y * self.a + self.b;
+        let k1 = self.c * y * (self.b - y) + x;
         
         self.x = floor(k0);
         self.y = floor(k1);
