@@ -160,9 +160,8 @@ impl<N, C> Figure<N, C>
                 for sample_nr in 0 .. samples {
                     let mut p = T2::<V, V>::uniform01(rng) * size.map(Real::splat) + offset.map(Real::splat); // random point on the canvas
                     for _ in 0 .. iterations {
-                        let (q, gradient) = func(p);
-                        let s = gradient.0 * gradient.0 + gradient.1 * gradient.1;
-                        p = p - gradient * (q / s) * T2::uniform01(rng);
+                        let (q, grad_inv) = func(p);
+                        p = p - grad_inv * q; // * T2::uniform01(rng);
                     }
 
                     let s: T2<V, V> = (p - offset.map(Real::splat)) * canvas_scale.map(Real::splat) + T2::uniform01(rng);

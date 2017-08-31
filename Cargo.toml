@@ -5,29 +5,16 @@ authors = ["Sebastian Köln <sebk@rynx.org>"]
 
 [dependencies]
 rand = "*"
-tuple = { path = "https://github.com/s3bk/tuple.git", features = ["impl_serde", "impl_simd"] }
+tuple = { git = "https://github.com/s3bk/tuple.git", features = ["impl_serde", "impl_simd"] }
 palette = "*"
 lazy_static = "*"
-math = { git="https://github.com/s3bk/math.git", features=["simd"] }
-gfx_app = { git = "https://github.com/gfx-rs/gfx.git" }
-gfx = { git = "https://github.com/gfx-rs/gfx.git", path = "src/render" }
-gfx_core = { git = "https://github.com/gfx-rs/gfx.git", path = "src/core" }
-winit = "0.6.0"
+math = { git="https://github.com/s3bk/math.git" }
 simd = "*"
 
 [dependencies.image]
 version = "0.14"
 default-features = false
 features = ["png_codec"]
-
-[dev-dependencies]
-cpal = "*"
-futures = "*"
-rusttype = "*"
-serde = "*"
-serde_derive = "*"
-toml = "*"
-fmath = { version = "*", git = "https://github.com/s3bk/fmath.git" }
 
 [profile.release]
 opt-level = 3

@@ -1,4 +1,4 @@
-use tuple::{T2, T4, TupleElements};
+use tuple::{T2, T4, TupleElements, Map};
 use math::real::{Real};
 use math::cast::Cast;
 use std::fmt::Debug;

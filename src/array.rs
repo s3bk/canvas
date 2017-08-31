@@ -1,6 +1,6 @@
 use std::{cmp};
 use std::ops::{Index, IndexMut};
-use canvas::{Canvas, Data, Meta};
+use canvas::{Canvas, Data, Meta, Initial};
 use image::GrayImage;
 
 #[derive(Copy, Clone)]
@@ -105,24 +105,27 @@ impl Meta for Mapped2d {
 
 #[test]
 fn test_map() {
+    use tuple::T2;
+    use canvas::Initial;
+    
     let width = 2048;
     let height = 1024;
     
-    let data = vec![(0u16, 0u16); width * height];
+    let data = vec![T2(0u16, 0u16); width * height];
     let mut map = Array::new(
         Mapped2d::new(width, height),
-        Vec::<(u16, u16)>::initial(width, height)
+        Vec::<T2<u16, u16>>::initial(width, height)
     );
     
     for x in 0 .. width {
         for y in 0 .. height {
-            map[(x, y)] = (x as u16, y as u16);
+            map[(x, y)] = T2(x as u16, y as u16);
         }
     }
     
     for x in 0 .. width {
         for y in 0 .. height {
-            assert_eq!(map[(x, y)], (x as u16, y as u16));
+            assert_eq!(map[(x, y)], T2(x as u16, y as u16));
         }
     }
 }
