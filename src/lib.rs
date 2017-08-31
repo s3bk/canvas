@@ -16,5 +16,6 @@ pub mod array;
 pub mod contour;
 pub mod pen;
 pub mod colormap;
+pub mod rng;
 
 pub use canvas::Canvas;
