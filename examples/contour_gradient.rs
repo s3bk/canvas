@@ -18,7 +18,6 @@ use math::diff::diff;
 use std::env;
 
 #[inline]
-#[naked]
 fn floor(x: f32x8) -> f32x8 {
     let y;
     unsafe { asm! { "
