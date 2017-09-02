@@ -34,6 +34,10 @@ impl<N, C> Figure<N, C>
         }
     }
 
+    pub fn canvas(&self) -> &C {
+        &self.canvas
+    }
+    
     pub fn sample_xy<F, V>(&mut self, samples: usize, mut func: F) -> &mut Self
         where F: FnMut(V) -> V, V: Real<Scalar=N>
     {
