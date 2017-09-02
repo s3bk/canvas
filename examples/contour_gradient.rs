@@ -63,7 +63,7 @@ impl VRng<T2<f32x8, f32x8>> for ChaosRng {
 
 fn main() {
     let expr = env::args().skip(1).next().unwrap_or_else(|| "cos(x) * sin(y) - c".into());
-    let mut fig: Figure<f32, Array<Vec<f32>, RowMajor>> = Figure::new(-4. .. 4., -4. .. 4., (512, 512));
+    let mut fig: Figure<f32, Array<Vec<f32>, RowMajor>> = Figure::new(-4. .. 4., -4. .. 4., (1024, 1024));
 
     let b = Builder::new();
     let f = b.parse(&expr).expect("failed to parse");
