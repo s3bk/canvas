@@ -16,7 +16,7 @@ use std::env;
 
 fn main() {
     let expr = env::args().skip(1).next().unwrap_or_else(|| "cos(x) * sin(y) - c / 10".into());
-    let mut canvas: Figure<f32, Array<Vec<f32>, RowMajor>> = Figure::new(-4.0 .. 4.0, -4.0 .. 4.0, (512, 512));
+    let mut canvas: Figure<f32, Array<Vec<f32>, RowMajor>> = Figure::new(-4.0 .. 4.0, -4.0 .. 4.0, (1024, 1024));
 
     let b = Builder::new();
     let f = b.parse(&expr).expect("failed to parse");

@@ -161,6 +161,7 @@ impl<N, C> Figure<N, C>
                 let r: T2<V, V> = rng.next();
                 let mut p = r * size.map(Real::splat) + offset.map(Real::splat); // random point on the canvas
                 for _ in 0 .. iterations {
+//                    let r: T2<V, V> = rng.next();
                     let (q, grad_inv) = func(p);
                     p = p - grad_inv * q; // * T2::uniform01(rng);
                 }
@@ -181,7 +182,8 @@ impl<N, C> Figure<N, C>
     }
 
     pub fn grayscale(&self, max: Option<<C::Data as Data>::Item>) -> GrayImage
-        where <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
+        where <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>,
+    usize: Cast<<C::Data as Data>::Item>
     {
         colormap::grayscale(&self.canvas, max)
     }

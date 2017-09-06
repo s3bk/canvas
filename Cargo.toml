@@ -8,12 +8,11 @@ rand = "*"
 tuple = { git = "https://github.com/s3bk/tuple.git", features = ["impl_serde", "impl_simd"] }
 palette = "*"
 lazy_static = "*"
-math = { git="https://github.com/s3bk/math.git" }
+math = { git = "https://github.com/s3bk/math.git" }
 simd = "*"
-llvmint = "*"
 
 [dependencies.image]
-version = "0.14"
+version = "*"
 default-features = false
 features = ["png_codec"]
 

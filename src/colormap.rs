@@ -37,7 +37,9 @@ impl ColorMap for Vec<(f32, Lch)> {
 }
 
 pub fn map<C, M>(canvas: &C, colormap: &M) -> RgbaImage
-    where C: Canvas, M: ColorMap, <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
+    where C: Canvas, M: ColorMap,
+          <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>,
+          usize: Cast<<C::Data as Data>::Item>,
 {
     let (width, height) = canvas.run(|meta, _| meta.size());
     let mut imgbuf = RgbaImage::new(width as u32, height as u32);
@@ -46,25 +48,33 @@ pub fn map<C, M>(canvas: &C, colormap: &M) -> RgbaImage
 }
 
 fn map_to_index<C, F, O>(canvas: &C, steps: usize, max: Option<<C::Data as Data>::Item>, f: F) -> O
-    where C: Canvas, <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>, F: FnOnce((u32, u32), &Fn(u32, u32) -> usize) -> O
+    where C: Canvas,
+          <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>,
+          usize: Cast<<C::Data as Data>::Item>,
+          F: FnOnce((u32, u32), &Fn(u32, u32) -> usize) -> O
 {
+    let zero = <<C::Data as Data>::Item as Real>::int(0);
     canvas.run(|meta, data| {
         // figure out max value
         let (width, height) = meta.size();
+        let mut sum = zero;
         let max_value = max.unwrap_or_else(|| {
-            let mut max_value = <<C::Data as Data>::Item as Real>::int(0);
+            let mut max_value = zero;
             for y in 0 .. height {
+                let (width, height) = meta.size();
+                let mut row_sum = zero;
                 for x in 0 .. width {
                     let &v = data.get(meta.index((x, y)));
-                    if v.gt(max_value) {
-                        max_value = v;
-                    }
+                    row_sum += v;
                 }
+                sum += row_sum;
             }
+
             max_value
         });
-        
-        let scale = <<C::Data as Data>::Item as Real>::int(steps as i16 - 1) / max_value.sqrt();
+
+        let t: <C::Data as Data>::Item = (steps * (height + width)).cast().unwrap();
+        let scale = t * sum.inv().sqrt();
         
         f((width as u32, height as u32), &|x, y| {
             let idx = meta.index((x as usize, height - 1 - y as usize));
@@ -74,7 +84,9 @@ fn map_to_index<C, F, O>(canvas: &C, steps: usize, max: Option<<C::Data as Data>
     })
 }
 pub fn map_to<C, M>(canvas: &C, colormap: &M, imgbuf: &mut RgbaImage)
-    where C: Canvas, M: ColorMap, <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
+    where C: Canvas, M: ColorMap,
+          <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>,
+          usize: Cast<<C::Data as Data>::Item>,
 {
     let steps = 1024;
     let cmap = colormap.build(steps);
@@ -86,7 +98,8 @@ pub fn map_to<C, M>(canvas: &C, colormap: &M, imgbuf: &mut RgbaImage)
 }
 
 pub fn grayscale<C: Canvas>(canvas: &C, max: Option<<C::Data as Data>::Item>) -> GrayImage
-    where <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>
+    where <C::Data as Data>::Item: Real<Bool=bool> + Copy + Cast<usize>,
+          usize: Cast<<C::Data as Data>::Item>,
 {
     map_to_index(canvas, 256, max, |(width, height), get| {
         let mut imgbuf = GrayImage::new(width as u32, height as u32);

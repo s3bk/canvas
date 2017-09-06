@@ -62,7 +62,7 @@ impl VRng<T2<f32x8, f32x8>> for ChaosRng {
 
 
 fn main() {
-    let expr = env::args().skip(1).next().unwrap_or_else(|| "cos(x) * sin(y) - c".into());
+    let expr = env::args().skip(1).next().unwrap_or_else(|| "cos(x) * sin(y) - c/10".into());
     let mut fig: Figure<f32, Array<Vec<f32>, RowMajor>> = Figure::new(-4. .. 4., -4. .. 4., (1024, 1024));
 
     let b = Builder::new();
@@ -90,5 +90,5 @@ fn main() {
         );
     }
     eprintln!(" saving");
-    fig.grayscale(Some(20.)).save("data/contour_gradient.png").unwrap();
+    fig.grayscale(None).save("data/contour_gradient.png").unwrap();
 }
